@@ -1,0 +1,29 @@
+--- a/drivers/platform/x86/hp/hp-wmi.c
++++ b/drivers/platform/x86/hp/hp-wmi.c
+@@ -219,6 +219,10 @@
+ 		.driver_data = (void *)&omen_v1_thermal_params,
+ 	},
+ 	{
++		.matches = { DMI_MATCH(DMI_BOARD_NAME, "8C2E") },
++		.driver_data = (void *)&victus_s_thermal_params,
++	},
++	{
+ 		.matches = { DMI_MATCH(DMI_BOARD_NAME, "8C99") },
+ 		.driver_data = (void *)&victus_s_thermal_params,
+ 	},
+@@ -2566,6 +2570,15 @@
+ 	min_rpm = fan_table->entries[0].cpu_rpm;
+ 	max_rpm = fan_table->entries[fan_table->header.num_entries - 1].cpu_rpm;
+ 	gpu_delta = fan_table->entries[0].gpu_rpm - fan_table->entries[0].cpu_rpm;
++	/*
++	 * Board 8C2E returns a stub fan table (max_rpm == 0); use limits
++	 * measured with the full-speed command (~4900/4800 RPM).
++	 */
++	if (max_rpm == 0) {
++		min_rpm = 20;
++		max_rpm = 49;
++		gpu_delta = 0;
++	}
+ 	priv->min_rpm = min_rpm;
+ 	priv->max_rpm = max_rpm;
+ 	priv->gpu_delta = gpu_delta;

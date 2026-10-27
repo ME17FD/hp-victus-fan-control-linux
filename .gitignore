@@ -1,0 +1,16 @@
+# build output
+*.ko
+*.o
+*.mod
+*.mod.c
+*.cmd
+.tmp_versions/
+Module.symvers
+modules.order
+.*.cmd
+
+# firmware dumps contain machine-specific data (e.g. MSDM = Windows key)
+dump/
+*.dat
+*.dsl
+*.bin
