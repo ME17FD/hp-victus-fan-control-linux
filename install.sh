@@ -6,7 +6,7 @@
 set -euo pipefail
 
 NAME=hp-wmi-victus-8c2e
-VER=1.0
+VER=1.1
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/dkms"
 
 [[ $EUID -eq 0 ]] || { echo "error: run as root (sudo $0)"; exit 1; }
@@ -18,9 +18,9 @@ if [[ "$board" != 8C2E && "${FORCE:-0}" != 1 ]]; then
     exit 1
 fi
 
-if ! command -v dkms >/dev/null 2>&1 || [[ ! -e /lib/modules/$(uname -r)/build ]]; then
+if ! command -v dkms >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1 || ! command -v patch >/dev/null 2>&1 || [[ ! -e /lib/modules/$(uname -r)/build ]]; then
     if command -v apt-get >/dev/null 2>&1; then
-        apt-get install -y dkms "linux-headers-$(uname -r)"
+        apt-get install -y dkms curl patch "linux-headers-$(uname -r)"
     elif command -v pacman >/dev/null 2>&1; then
         # Headers package must match your kernel (linux-headers, linux-lts-headers, linux-zen-headers, ...)
         case "$(uname -r)" in
@@ -29,7 +29,7 @@ if ! command -v dkms >/dev/null 2>&1 || [[ ! -e /lib/modules/$(uname -r)/build ]
             *-hardened) hdr=linux-hardened-headers ;;
             *)      hdr=linux-headers ;;
         esac
-        pacman -S --needed --noconfirm dkms "$hdr"
+        pacman -S --needed --noconfirm dkms curl patch "$hdr"
     else
         echo "error: install 'dkms' and your kernel headers, then re-run"; exit 1
     fi
@@ -38,6 +38,7 @@ fi
 dkms remove "$NAME/$VER" --all 2>/dev/null || true
 rm -rf "/usr/src/$NAME-$VER"
 cp -r "$SRC_DIR" "/usr/src/$NAME-$VER"
+cp "$(dirname "$SRC_DIR")"/patches/*.patch "/usr/src/$NAME-$VER/"
 dkms add "$NAME/$VER"
 dkms install "$NAME/$VER"
 depmod -a
