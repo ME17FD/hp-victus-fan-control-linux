@@ -7,7 +7,6 @@ set -euo pipefail
 
 kver=${1:?usage: prebuild.sh <kernelver>}
 cd "$(dirname "$0")"
-PATCH=0001-hp-wmi-add-8C2E-fan-control.patch
 
 # 7.0.0-38-generic -> 7.0 ; 6.12.7-arch1-1 -> 6.12.7 ; 6.12.arch1-1 -> 6.12
 ver=$(sed -E 's/[.-](arch|lts|zen|hardened|rc)[^ ]*$//; s/-.*$//' <<<"$kver")
@@ -51,9 +50,22 @@ if [[ -z $got ]]; then
     fi
 fi
 
-if ! patch --no-backup-if-mismatch -s hp-wmi.c < "$PATCH"; then
-    echo "hp-wmi-victus: patch does not apply to kernel v$ver hp-wmi.c." >&2
-    echo "  This kernel's driver differs too much; see README (Supported kernels)." >&2
-    exit 1
+# 0001: required. Skipped only when the kernel already knows board 8C2E.
+if grep -q '"8C2E"' hp-wmi.c; then
+    echo "hp-wmi-victus: kernel v$ver already lists board 8C2E; skipping 0001 (this module may be unnecessary)" >&2
+else
+    if ! patch --fuzz=0 --no-backup-if-mismatch -s hp-wmi.c < 0001-hp-wmi-add-8C2E-fan-control.patch; then
+        echo "hp-wmi-victus: patch 0001 does not apply to kernel v$ver hp-wmi.c." >&2
+        echo "  This kernel's driver differs too much; see README (Supported kernels)." >&2
+        exit 1
+    fi
 fi
-echo "hp-wmi-victus: built hp-wmi.c from upstream v$ver + 8C2E patch"
+
+# 0002: optional logging improvement. Never blocks the build, but is not silent.
+cp hp-wmi.c hp-wmi.c.pre0002
+if ! patch --fuzz=0 --no-backup-if-mismatch -s hp-wmi.c < 0002-hp-wmi-warn-on-fan-keep-alive-failure.patch; then
+    cp hp-wmi.c.pre0002 hp-wmi.c   # undo any partially applied hunks
+    echo "hp-wmi-victus: WARNING: patch 0002 (keep-alive failure logging) did not apply; building without it." >&2
+fi
+rm -f hp-wmi.c.rej hp-wmi.c.orig hp-wmi.c.pre0002
+echo "hp-wmi-victus: built hp-wmi.c from upstream v$ver + patches"

@@ -46,4 +46,4 @@ depmod -a
 echo
 echo "Installed. Reload the module now, or reboot:"
 echo "  sudo rmmod hp_wmi && sudo modprobe hp_wmi"
-echo "Then check:  ls /sys/devices/platform/hp-wmi/hwmon/hwmon*/pwm1"
+echo "Then check:  sudo scripts/verify.sh   (and again after every kernel update)"

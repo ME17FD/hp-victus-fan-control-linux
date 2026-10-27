@@ -11,7 +11,7 @@
  		.matches = { DMI_MATCH(DMI_BOARD_NAME, "8C99") },
  		.driver_data = (void *)&victus_s_thermal_params,
  	},
-@@ -2566,6 +2570,15 @@
+@@ -2566,6 +2570,17 @@
  	min_rpm = fan_table->entries[0].cpu_rpm;
  	max_rpm = fan_table->entries[fan_table->header.num_entries - 1].cpu_rpm;
  	gpu_delta = fan_table->entries[0].gpu_rpm - fan_table->entries[0].cpu_rpm;
@@ -20,6 +20,8 @@
 +	 * measured with the full-speed command (~4900/4800 RPM).
 +	 */
 +	if (max_rpm == 0) {
++		dev_warn(&hp_wmi_platform_dev->dev,
++			 "firmware fan table is empty, using built-in limits (20-49 x100 RPM)\n");
 +		min_rpm = 20;
 +		max_rpm = 49;
 +		gpu_delta = 0;

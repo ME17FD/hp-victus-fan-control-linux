@@ -23,15 +23,19 @@ a small patch to `hp-wmi.c` as a DKMS module that enables it, so that
 >   `sudo ./uninstall.sh` and a reboot restore the stock driver.
 > - Not affiliated with or endorsed by HP.
 
-## What the patch does
+## What the patches do
 
-[`patches/0001-hp-wmi-add-8C2E-fan-control.patch`](patches/0001-hp-wmi-add-8C2E-fan-control.patch)
-(against upstream Linux v7.0 `drivers/platform/x86/hp/hp-wmi.c`; applied at build time to your kernel's version):
+Both apply to upstream `drivers/platform/x86/hp/hp-wmi.c` at build time:
 
-1. Adds `8C2E` to `victus_s_thermal_profile_boards`.
-2. Falls back to measured fan limits when the firmware's fan table is a stub
-   (this board returns `max_rpm == 0`, which would make every PWM value map to
-   0 RPM). Limits used: min 2000 RPM, max 4900 RPM, no GPU offset.
+- [`0001`](patches/0001-hp-wmi-add-8C2E-fan-control.patch) (required)
+  1. Adds `8C2E` to `victus_s_thermal_profile_boards`.
+  2. Falls back to measured fan limits when the firmware's fan table is a stub
+     (this board returns `max_rpm == 0`, which would make every PWM value map to
+     0 RPM). Limits: min 2000 RPM, max 4900 RPM, no GPU offset. The driver logs
+     a `dev_warn` whenever the fallback is used.
+- [`0002`](patches/0002-hp-wmi-warn-on-fan-keep-alive-failure.patch) (optional)
+  Logs a warning when the periodic keep-alive write fails; upstream ignores
+  that error, after which the firmware silently resets the fans after ~120 s.
 
 Details of how this was found: [docs/findings.md](docs/findings.md).
 
@@ -85,23 +89,36 @@ by the author. Reports welcome.
 
 Uninstall: `sudo ./uninstall.sh`.
 
-## Verify
+## Verify (run this after install and after every kernel update)
 
 ```sh
-H=$(echo /sys/devices/platform/hp-wmi/hwmon/hwmon*)
-cat $H/pwm1_enable $H/pwm1 $H/fan1_input $H/fan2_input
-echo 1   | sudo tee $H/pwm1_enable     # manual
-echo 100 | sudo tee $H/pwm1; sleep 10; cat $H/fan1_input $H/fan2_input   # ~1900 RPM
-echo 200 | sudo tee $H/pwm1; sleep 10; cat $H/fan1_input $H/fan2_input   # ~3600 RPM
-echo 2   | sudo tee $H/pwm1_enable     # back to automatic
+scripts/verify.sh --quick     # read-only: DKMS built for this kernel, module is the patched one, pwm1 exists
+sudo scripts/verify.sh        # full: also checks the fans really follow pwm1 (changes fan speed ~25 s)
+sudo scripts/fan-test.sh      # hold max fan for 3 min and log RPM/temps
 ```
 
-Results on the reference machine: `pwm1=100` gave 1900/1800 RPM, `pwm1=200`
-gave 3600/3600 RPM, `pwm1_enable=0` (max) gave 4900/4800 RPM.
+`verify.sh` exits non-zero if anything is wrong. Reference results: `pwm1=100`
+gave 1900/1800 RPM, `pwm1=200` gave 3600/3600 RPM, `pwm1_enable=0` (max) gave
+4900/4800 RPM.
 
 `pwm1_enable`: `0` = full speed, `1` = manual, `2` = automatic (firmware).
 The driver re-sends the manual speed every 90 s because the firmware resets it
 after about 120 s.
+
+## Known limits (things that can still fail without an obvious error)
+
+- **Kernel updates.** DKMS rebuilds automatically, but a failed rebuild only
+  shows in your package manager's output and you boot the stock driver with no
+  `pwm1`. Run `scripts/verify.sh --quick` after updating, or check
+  `/var/lib/dkms/hp-wmi-victus-8c2e/`.
+- **The EC can ignore a write that the WMI call reports as successful.** The
+  driver does not read the speed back. This is why `verify.sh` checks RPM, not
+  just the return code.
+- **Build stops are loud, behavior drift is not.** Patches are applied with
+  zero fuzz so a changed context fails the build, but a kernel that compiles
+  cleanly with changed fan semantics would not be noticed. Only 7.0.x has been
+  run on hardware.
+- Fan limits (2000-4900 RPM) were measured on one unit over a 10 s sample.
 
 ## Fan curves with hpfand
 
@@ -128,9 +145,10 @@ fallback here as a pragmatic stopgap.
 | Path | Contents |
 |---|---|
 | `dkms/` | `prebuild.sh` (fetch + patch), `hp-wmi.c.v7.0` (offline base), `Makefile`, `dkms.conf` |
-| `patches/` | The change as a unified diff against upstream |
+| `patches/` | `0001` (8C2E support, required) and `0002` (keep-alive logging, optional) as diffs against upstream |
 | `docs/findings.md` | Reverse-engineering notes (DSDT / WMI) |
 | `install.sh`, `uninstall.sh` | DKMS install helpers (apt / pacman) |
+| `scripts/verify.sh` | Post-install / post-kernel-update check; non-zero exit on any failure |
 | `scripts/fan-test.sh` | Hold a fixed fan speed for N seconds, log RPM/temps, restore auto |
 
 ## License

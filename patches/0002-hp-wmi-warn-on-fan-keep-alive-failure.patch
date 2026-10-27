@@ -1,0 +1,22 @@
+--- a/drivers/platform/x86/hp/hp-wmi.c
++++ b/drivers/platform/x86/hp/hp-wmi.c
+@@ -2528,6 +2528,7 @@
+ {
+ 	struct delayed_work *dwork;
+ 	struct hp_wmi_hwmon_priv *priv;
++	int ret;
+ 
+ 	dwork = to_delayed_work(work);
+ 	priv = container_of(dwork, struct hp_wmi_hwmon_priv, keep_alive_dwork);
+@@ -2535,7 +2536,10 @@
+ 	 * Re-apply the current hwmon context settings.
+ 	 * NOTE: hp_wmi_apply_fan_settings will handle the re-scheduling.
+ 	 */
+-	hp_wmi_apply_fan_settings(priv);
++	ret = hp_wmi_apply_fan_settings(priv);
++	if (ret)
++		dev_warn(&hp_wmi_platform_dev->dev,
++			 "fan keep-alive failed (%d), firmware may reset fan mode\n", ret);
+ }
+ 
+ static int hp_wmi_setup_fan_settings(struct hp_wmi_hwmon_priv *priv)
